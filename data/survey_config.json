@@ -1,0 +1,29 @@
+{
+  "title": "職員満足度アンケート（サンプル）",
+  "description": "本アンケートは職員の満足度向上を目的としています。ご協力をお願いいたします。",
+  "created_at": "2026-01-01T00:00:00",
+  "admin_password_hash": "",
+  "questions": [
+    {
+      "id": 1,
+      "type": "single_choice",
+      "required": true,
+      "text": "現在の職場環境に満足していますか？",
+      "choices": ["大変満足", "満足", "普通", "不満", "大変不満"]
+    },
+    {
+      "id": 2,
+      "type": "single_choice",
+      "required": true,
+      "text": "業務量は適切ですか？",
+      "choices": ["適切", "やや多い", "多すぎる", "やや少ない", "少なすぎる"]
+    },
+    {
+      "id": 3,
+      "type": "free_text",
+      "required": false,
+      "text": "職場環境の改善について、ご意見があればご記入ください。"
+    }
+  ],
+  "reference_files": []
+}
