@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+dist/
+build/
+*.egg-info/
+.eggs/
+data/answers.csv
+data/access_log.txt
+*.lock
