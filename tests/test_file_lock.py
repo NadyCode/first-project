@@ -37,7 +37,26 @@ class TestFileLock(unittest.TestCase):
         lock = FileLock(self.target, timeout=5)
         lock.acquire()
         lock.release()
-        lock.release()  # should not raise
+        lock.release()
+
+    def test_lock_file_contains_info(self):
+        lock = FileLock(self.target, timeout=5)
+        lock.acquire()
+        with open(self.target + ".lock", "r") as f:
+            content = f.read()
+        parts = content.split(":")
+        self.assertEqual(len(parts), 3)
+        self.assertEqual(parts[1], str(os.getpid()))
+        lock.release()
+
+    def test_stale_lock_detection(self):
+        # 古いロックファイルを手動作成
+        with open(self.target + ".lock", "w") as f:
+            f.write(f"otherhost:99999:0")  # timestamp=0 は確実に古い
+        lock = FileLock(self.target, timeout=1)
+        lock.acquire()
+        self.assertTrue(os.path.exists(self.target + ".lock"))
+        lock.release()
 
 
 if __name__ == "__main__":
