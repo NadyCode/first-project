@@ -31,6 +31,7 @@ class HospitalSurveyApp:
         style.configure("Title.TLabel", font=("", 20, "bold"))
         style.configure("Big.TButton", font=("", 12), padding=10)
         style.configure("Status.TLabel", font=("", 9))
+        style.configure("Small.TButton", font=("", 8))
 
         self._check_data_connection()
 
@@ -166,33 +167,35 @@ class HospitalSurveyApp:
         frame.pack(fill=tk.BOTH, expand=True)
         self._current_panel = frame
 
+        # 右上に管理者モードボタン（小さく配置）
+        top_bar = ttk.Frame(frame)
+        top_bar.pack(fill=tk.X, padx=10, pady=5)
+        ttk.Button(
+            top_bar,
+            text="管理者モード",
+            style="Small.TButton",
+            command=self._show_admin_login,
+        ).pack(side=tk.RIGHT)
+
+        # 中央コンテンツ
         center = ttk.Frame(frame)
-        center.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+        center.place(relx=0.5, rely=0.45, anchor=tk.CENTER)
 
         ttk.Label(center, text=APP_TITLE, style="Title.TLabel").pack(pady=(0, 10))
         ttk.Label(center, text=f"Version {APP_VERSION}").pack(pady=(0, 5))
 
-        # 接続先表示
         ttk.Label(
             center,
             text=f"データ: {config.DATA_DIR}",
             style="Status.TLabel",
             foreground="gray",
-        ).pack(pady=(0, 25))
+        ).pack(pady=(0, 30))
 
         ttk.Button(
             center,
             text="アンケートに回答する",
             style="Big.TButton",
             command=self._show_response,
-            width=30,
-        ).pack(pady=10)
-
-        ttk.Button(
-            center,
-            text="管理者モード（作成・集計）",
-            style="Big.TButton",
-            command=self._show_admin_login,
             width=30,
         ).pack(pady=10)
 

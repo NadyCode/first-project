@@ -11,6 +11,7 @@ from tkinter import messagebox, ttk
 from typing import Callable
 
 from src.data_manager import (
+    get_respondents,
     load_master_users,
     load_survey_config,
     save_answer,
@@ -114,6 +115,15 @@ class ResponsePanel(ttk.Frame):
             width=20,
         )
         self.name_combo.grid(row=0, column=3, padx=5, pady=3)
+        self.name_combo.bind("<<ComboboxSelected>>", self._on_name_selected)
+
+        self._already_answered_label = ttk.Label(
+            id_frame, text="", foreground="orange"
+        )
+        self._already_answered_label.grid(row=1, column=0, columnspan=4, sticky=tk.W, padx=5)
+
+        self._respondents = get_respondents()
+        self._submission_allowed = True
 
         # 設問表示
         questions = self._config.get("questions", [])
@@ -141,6 +151,35 @@ class ResponsePanel(ttk.Frame):
         names = self._departments.get(dept, [])
         self.name_combo["values"] = sorted(names)
         self.name_var.set("")
+        self._already_answered_label.config(text="")
+        self._submission_allowed = True
+
+    def _on_name_selected(self, event=None) -> None:
+        """氏名選択時に回答済みかどうかを確認する。"""
+        dept = self.dept_var.get()
+        name = self.name_var.get()
+        if not dept or not name:
+            return
+
+        if (dept, name) in self._respondents:
+            self._submission_allowed = False
+            self._already_answered_label.config(text="※ 回答済みです")
+            result = messagebox.askyesno(
+                "回答済み",
+                f"{name} さんは既に回答済みです。\n修正しますか？",
+            )
+            if result:
+                self._submission_allowed = True
+                self._already_answered_label.config(
+                    text="※ 回答済み（修正モード）", foreground="blue"
+                )
+            else:
+                self._already_answered_label.config(
+                    text="※ 回答済みです", foreground="orange"
+                )
+        else:
+            self._submission_allowed = True
+            self._already_answered_label.config(text="")
 
     def _build_question_widget(self, q: dict) -> None:
         """設問タイプに応じたウィジェットを生成する。"""
@@ -196,6 +235,12 @@ class ResponsePanel(ttk.Frame):
 
     def _submit(self) -> None:
         """回答を送信する。"""
+        if not self._submission_allowed:
+            messagebox.showinfo(
+                "送信不可", "回答済みのため送信できません。\n修正する場合は氏名を再度選択してください。"
+            )
+            return
+
         errors = self._validate()
         if errors:
             messagebox.showwarning("入力エラー", "\n".join(errors))
