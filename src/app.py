@@ -10,6 +10,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import src.config as config
 from src.config import APP_TITLE, APP_VERSION
+from src.data_manager import check_version_outdated, ensure_data_layout
 from src.gui_admin import AdminLoginDialog, AdminPanel
 from src.gui_aggregate import AggregatePanel
 from src.gui_response import ResponsePanel
@@ -41,13 +42,38 @@ class HospitalSurveyApp:
 
         if os.path.isdir(data_dir):
             os.makedirs(data_dir, exist_ok=True)
-            try:
-                write_access_log()
-            except Exception:
-                pass
-            self._show_home()
+            self._after_connect()
         else:
             self._show_connection_setup()
+
+    def _after_connect(self) -> None:
+        """接続確立後の初期化（データ構成・ログ・更新チェック）を行う。"""
+        try:
+            ensure_data_layout()
+        except Exception:
+            pass
+        try:
+            write_access_log()
+        except Exception:
+            pass
+        self._show_home()
+        self._check_version()
+
+    def _check_version(self) -> None:
+        """共有フォルダの最新バージョンと比較し、古ければ更新を促す。"""
+        try:
+            outdated, latest, note = check_version_outdated()
+        except Exception:
+            return
+        if outdated:
+            msg = (
+                f"新しいバージョンがあります。\n\n"
+                f"使用中: {APP_VERSION}\n最新: {latest}\n"
+            )
+            if note:
+                msg += f"\n{note}"
+            msg += "\n\n管理者から最新版（exe）を入手してください。"
+            messagebox.showwarning("更新のお知らせ", msg)
 
     def _show_connection_setup(self) -> None:
         """共有フォルダ設定画面を表示する。"""
@@ -126,34 +152,16 @@ class HospitalSurveyApp:
             return
 
         # 設定を保存
-        settings = config.load_local_settings()
-        settings["shared_data_dir"] = path
-        config.save_local_settings(settings)
-        config.reload_paths()
-
-        try:
-            write_access_log()
-        except Exception:
-            pass
+        config.set_data_dir(path)
 
         self._status_label.config(text="接続成功！", foreground="green")
-        self.root.after(500, self._show_home)
+        self.root.after(500, self._after_connect)
 
     def _use_local_mode(self) -> None:
         local_dir = os.path.join(config.APP_DIR, "data")
         os.makedirs(local_dir, exist_ok=True)
-
-        settings = config.load_local_settings()
-        settings["shared_data_dir"] = local_dir
-        config.save_local_settings(settings)
-        config.reload_paths()
-
-        try:
-            write_access_log()
-        except Exception:
-            pass
-
-        self._show_home()
+        config.set_data_dir(local_dir)
+        self._after_connect()
 
     def _clear_panel(self) -> None:
         if self._current_panel is not None:

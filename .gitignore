@@ -5,6 +5,14 @@ dist/
 build/
 *.egg-info/
 .eggs/
-data/answers.csv
-data/access_log.txt
 *.lock
+*.migrated
+
+# 実行時に生成される共有データ（回答・ログ・端末設定など）
+local_settings.json
+data/access_log.txt
+data/answers.csv
+data/app_config.json
+data/version.json
+data/surveys/*/answers.csv
+data/surveys/*/backups/

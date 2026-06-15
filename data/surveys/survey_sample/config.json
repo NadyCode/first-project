@@ -1,8 +1,12 @@
 {
+  "id": "survey_sample",
   "title": "職員満足度アンケート（サンプル）",
   "description": "本アンケートは職員の満足度向上を目的としています。ご協力をお願いいたします。",
   "created_at": "2026-01-01T00:00:00",
-  "admin_password_hash": "",
+  "start_date": "",
+  "end_date": "",
+  "anonymous": false,
+  "status": "active",
   "questions": [
     {
       "id": 1,
@@ -20,6 +24,13 @@
     },
     {
       "id": 3,
+      "type": "free_text",
+      "required": false,
+      "text": "「不満」「大変不満」とお答えの方は、その理由をご記入ください。",
+      "condition": {"question_id": 1, "equals": "不満"}
+    },
+    {
+      "id": 4,
       "type": "free_text",
       "required": false,
       "text": "職場環境の改善について、ご意見があればご記入ください。"
