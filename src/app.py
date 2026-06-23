@@ -5,12 +5,15 @@
 """
 
 import os
+import shutil
+import subprocess
+import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 import src.config as config
 from src.config import APP_TITLE, APP_VERSION
-from src.data_manager import check_version_outdated, ensure_data_layout
+from src.data_manager import check_version_outdated, ensure_data_layout, get_update_exe_path
 from src.gui_admin import AdminLoginDialog, AdminPanel
 from src.gui_aggregate import AggregatePanel
 from src.gui_response import ResponsePanel
@@ -60,20 +63,65 @@ class HospitalSurveyApp:
         self._check_version()
 
     def _check_version(self) -> None:
-        """共有フォルダの最新バージョンと比較し、古ければ更新を促す。"""
+        """共有フォルダの最新バージョンと比較し、古ければ自動更新を試みる。"""
         try:
             outdated, latest, note = check_version_outdated()
         except Exception:
             return
-        if outdated:
+        if not outdated:
+            return
+
+        update_exe = get_update_exe_path()
+        if update_exe and getattr(sys, "frozen", False):
             msg = (
-                f"新しいバージョンがあります。\n\n"
+                f"新しいバージョンが利用可能です。\n\n"
                 f"使用中: {APP_VERSION}\n最新: {latest}\n"
             )
             if note:
                 msg += f"\n{note}"
-            msg += "\n\n管理者から最新版（exe）を入手してください。"
-            messagebox.showwarning("更新のお知らせ", msg)
+            msg += "\n\n自動更新しますか？"
+            if messagebox.askyesno("更新のお知らせ", msg):
+                self._perform_auto_update(update_exe)
+                return
+
+        msg = (
+            f"新しいバージョンがあります。\n\n"
+            f"使用中: {APP_VERSION}\n最新: {latest}\n"
+        )
+        if note:
+            msg += f"\n{note}"
+        msg += "\n\n管理者から最新版（exe）を入手してください。"
+        messagebox.showwarning("更新のお知らせ", msg)
+
+    def _perform_auto_update(self, source_exe: str) -> None:
+        """共有フォルダのexeで自身を更新し、再起動する。"""
+        current_exe = sys.executable
+        current_dir = os.path.dirname(current_exe)
+        exe_name = os.path.basename(current_exe)
+
+        bat_path = os.path.join(current_dir, "_update.bat")
+        bat_content = (
+            "@echo off\r\n"
+            "timeout /t 2 /nobreak > nul\r\n"
+            f'copy /Y "{source_exe}" "{current_exe}"\r\n'
+            f'start "" "{current_exe}"\r\n'
+            f'del "%~f0"\r\n'
+        )
+        try:
+            with open(bat_path, "w", encoding="mbcs") as f:
+                f.write(bat_content)
+            CREATE_NO_WINDOW = 0x08000000
+            subprocess.Popen(
+                ["cmd", "/c", bat_path],
+                creationflags=CREATE_NO_WINDOW,
+            )
+            self.root.destroy()
+            sys.exit(0)
+        except Exception as e:
+            messagebox.showerror(
+                "更新エラー",
+                f"自動更新に失敗しました。\n{e}\n\n管理者から最新版を入手してください。",
+            )
 
     def _show_connection_setup(self) -> None:
         """共有フォルダ設定画面を表示する。"""
@@ -189,15 +237,7 @@ class HospitalSurveyApp:
         center = ttk.Frame(frame)
         center.place(relx=0.5, rely=0.45, anchor=tk.CENTER)
 
-        ttk.Label(center, text=APP_TITLE, style="Title.TLabel").pack(pady=(0, 10))
-        ttk.Label(center, text=f"Version {APP_VERSION}").pack(pady=(0, 5))
-
-        ttk.Label(
-            center,
-            text=f"データ: {config.DATA_DIR}",
-            style="Status.TLabel",
-            foreground="gray",
-        ).pack(pady=(0, 30))
+        ttk.Label(center, text=APP_TITLE, style="Title.TLabel").pack(pady=(0, 30))
 
         ttk.Button(
             center,
@@ -207,15 +247,8 @@ class HospitalSurveyApp:
             width=30,
         ).pack(pady=10)
 
-        btn_frame = ttk.Frame(center)
-        btn_frame.pack(pady=(30, 0))
-
-        ttk.Button(
-            btn_frame, text="接続先変更", command=self._show_connection_setup
-        ).pack(side=tk.LEFT, padx=5)
-
-        ttk.Button(btn_frame, text="終了", command=self.root.quit).pack(
-            side=tk.LEFT, padx=5
+        ttk.Button(center, text="終了", command=self.root.quit, width=30).pack(
+            pady=(30, 0)
         )
 
     def _show_response(self) -> None:

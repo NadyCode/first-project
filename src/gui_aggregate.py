@@ -366,23 +366,55 @@ class AggregatePanel(ttk.Frame):
             ).pack(pady=40)
             return
 
+        toolbar = ttk.Frame(parent)
+        toolbar.pack(fill=tk.X, padx=10, pady=5)
+
+        self._unanswered_info = ttk.Label(toolbar, font=("", 11))
+        self._unanswered_info.pack(side=tk.LEFT)
+
+        self._unanswered_export_btn = ttk.Button(
+            toolbar, text="未回答者リストをCSV出力"
+        )
+        self._unanswered_export_btn.pack(side=tk.RIGHT)
+
+        filter_frame = ttk.LabelFrame(toolbar, text="部署フィルタ", padding=2)
+        filter_frame.pack(side=tk.RIGHT, padx=10)
+        self._unanswered_dept = tk.StringVar(value=ALL_DEPTS)
+        depts = sorted(load_master_users().keys())
+        combo = ttk.Combobox(
+            filter_frame, textvariable=self._unanswered_dept,
+            values=[ALL_DEPTS] + depts, state="readonly", width=15,
+        )
+        combo.pack(side=tk.LEFT)
+        combo.bind("<<ComboboxSelected>>", lambda e: self._refresh_unanswered())
+
+        self._unanswered_content = ttk.Frame(parent)
+        self._unanswered_content.pack(fill=tk.BOTH, expand=True)
+        self._refresh_unanswered()
+
+    def _refresh_unanswered(self) -> None:
+        for child in self._unanswered_content.winfo_children():
+            child.destroy()
+
+        dept_filter = self._unanswered_dept.get()
         all_staff = get_all_staff()
         respondents = get_survey_respondents(self._current_id)
+
+        if dept_filter != ALL_DEPTS:
+            all_staff = [(d, n) for d, n in all_staff if d == dept_filter]
+
         answered = [(d, n) for d, n in all_staff if (d, n) in respondents]
         unanswered = [(d, n) for d, n in all_staff if (d, n) not in respondents]
 
-        info = ttk.Frame(parent)
-        info.pack(fill=tk.X, padx=10, pady=5)
-        ttk.Label(
-            info,
-            text=f"全職員: {len(all_staff)}名 / 回答済み: {len(answered)}名 / 未回答: {len(unanswered)}名",
-            font=("", 11),
-        ).pack(side=tk.LEFT)
-        ttk.Button(
-            info, text="未回答者リストをCSV出力",
-            command=lambda: self._export_unanswered_csv(unanswered),
-        ).pack(side=tk.RIGHT)
+        self._unanswered_export_btn.config(
+            command=lambda u=unanswered: self._export_unanswered_csv(u)
+        )
+        scope = dept_filter if dept_filter != ALL_DEPTS else "全体"
+        self._unanswered_info.config(
+            text=f"({scope}) 対象: {len(all_staff)}名 / 回答済: {len(answered)}名 / 未回答: {len(unanswered)}名"
+        )
 
+        parent = self._unanswered_content
         tree = ttk.Treeview(parent, columns=("dept", "name", "status"), show="headings", height=15)
         for col, txt, w in [("dept", "部署", 150), ("name", "氏名", 200), ("status", "状態", 100)]:
             tree.heading(col, text=txt)
@@ -416,21 +448,53 @@ class AggregatePanel(ttk.Frame):
     # 回答一覧タブ
     # ------------------------------------------------------------------
     def _build_raw_tab(self, parent: ttk.Frame) -> None:
-        info = ttk.Frame(parent)
-        info.pack(fill=tk.X, padx=10, pady=5)
-        ttk.Label(info, text=f"全回答: {len(self._answers)}件").pack(side=tk.LEFT)
-        ttk.Button(info, text="バックアップ作成", command=self._make_backup).pack(
+        toolbar = ttk.Frame(parent)
+        toolbar.pack(fill=tk.X, padx=10, pady=5)
+
+        self._raw_count_label = ttk.Label(toolbar)
+        self._raw_count_label.pack(side=tk.LEFT)
+
+        ttk.Button(toolbar, text="バックアップ作成", command=self._make_backup).pack(
             side=tk.RIGHT, padx=2
         )
-        ttk.Button(info, text="回答データをCSV出力", command=self._export_raw_csv).pack(
+        ttk.Button(toolbar, text="回答データをCSV出力", command=self._export_raw_csv).pack(
             side=tk.RIGHT, padx=2
         )
 
-        if not self._answers:
+        filter_frame = ttk.LabelFrame(toolbar, text="部署フィルタ", padding=2)
+        filter_frame.pack(side=tk.RIGHT, padx=10)
+        self._raw_dept = tk.StringVar(value=ALL_DEPTS)
+        depts = sorted({(a.get("department") or "").strip() for a in self._answers if a.get("department")})
+        combo = ttk.Combobox(
+            filter_frame, textvariable=self._raw_dept,
+            values=[ALL_DEPTS] + depts, state="readonly", width=15,
+        )
+        combo.pack(side=tk.LEFT)
+        combo.bind("<<ComboboxSelected>>", lambda e: self._refresh_raw())
+
+        self._raw_content = ttk.Frame(parent)
+        self._raw_content.pack(fill=tk.BOTH, expand=True)
+        self._refresh_raw()
+
+    def _filtered_raw_answers(self) -> list[dict[str, str]]:
+        dept = self._raw_dept.get()
+        if dept == ALL_DEPTS:
+            return self._answers
+        return [a for a in self._answers if (a.get("department") or "").strip() == dept]
+
+    def _refresh_raw(self) -> None:
+        for child in self._raw_content.winfo_children():
+            child.destroy()
+
+        answers = self._filtered_raw_answers()
+        self._raw_count_label.config(text=f"表示回答: {len(answers)}件（全{len(self._answers)}件）")
+
+        parent = self._raw_content
+        if not answers:
             ttk.Label(parent, text="回答データがありません。", font=("", 12)).pack(pady=20)
             return
 
-        columns = list(self._answers[0].keys())
+        columns = list(answers[0].keys())
         tree = ttk.Treeview(parent, columns=columns, show="headings", height=15)
         for col in columns:
             tree.heading(col, text=col)
@@ -441,7 +505,7 @@ class AggregatePanel(ttk.Frame):
         h = ttk.Scrollbar(parent, orient=tk.HORIZONTAL, command=tree.xview)
         tree.configure(xscrollcommand=h.set)
         h.pack(fill=tk.X, padx=10)
-        for row in self._answers:
+        for row in answers:
             tree.insert("", tk.END, values=[row.get(c, "") for c in columns])
 
     def _make_backup(self) -> None:
@@ -459,13 +523,14 @@ class AggregatePanel(ttk.Frame):
         )
         if not path:
             return
-        if not self._answers:
+        answers = self._filtered_raw_answers()
+        if not answers:
             messagebox.showwarning("データなし", "出力する回答データがありません。")
             return
-        columns = list(self._answers[0].keys())
+        columns = list(answers[0].keys())
         with open(path, "w", encoding="utf-8-sig", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=columns)
             writer.writeheader()
-            writer.writerows(self._answers)
+            writer.writerows(answers)
         write_action_log("回答データCSV出力")
         messagebox.showinfo("出力完了", f"回答データを保存しました:\n{path}")

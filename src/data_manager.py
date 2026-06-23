@@ -404,18 +404,21 @@ def load_version_info() -> dict[str, Any]:
     """共有フォルダの version.json を読み込む。"""
     path = config.version_file_path()
     if not os.path.exists(path):
-        return {"latest_version": "", "note": ""}
+        return {"latest_version": "", "note": "", "exe_filename": ""}
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
     except (OSError, json.JSONDecodeError):
-        return {"latest_version": "", "note": ""}
+        return {"latest_version": "", "note": "", "exe_filename": ""}
     data.setdefault("latest_version", "")
     data.setdefault("note", "")
+    data.setdefault("exe_filename", "")
     return data
 
 
-def save_version_info(latest_version: str, note: str = "") -> None:
+def save_version_info(
+    latest_version: str, note: str = "", exe_filename: str = ""
+) -> None:
     """version.json に最新バージョン情報を書き込む。"""
     path = config.version_file_path()
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -425,12 +428,25 @@ def save_version_info(latest_version: str, note: str = "") -> None:
                 {
                     "latest_version": latest_version,
                     "note": note,
+                    "exe_filename": exe_filename,
                     "updated_at": datetime.now().isoformat(timespec="seconds"),
                 },
                 f,
                 ensure_ascii=False,
                 indent=2,
             )
+
+
+def get_update_exe_path() -> str | None:
+    """共有フォルダの更新用exeパスを返す（存在しなければNone）。"""
+    info = load_version_info()
+    exe_name = info.get("exe_filename", "")
+    if not exe_name:
+        return None
+    path = os.path.join(config.updates_dir(), exe_name)
+    if os.path.isfile(path):
+        return path
+    return None
 
 
 def _parse_version(v: str) -> tuple[int, ...]:

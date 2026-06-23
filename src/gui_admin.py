@@ -84,7 +84,8 @@ class AdminPanel(ttk.Frame):
         super().__init__(parent)
         self.back_callback = back_callback
         self._current_id: str | None = None
-        surveys = list_surveys()
+        self._show_archived = tk.BooleanVar(value=False)
+        surveys = list_surveys(include_archived=False)
         if surveys:
             self._current_id = surveys[0]["id"]
         self._build_ui()
@@ -116,6 +117,10 @@ class AdminPanel(ttk.Frame):
         notebook.add(self.version_tab, text="バージョン管理")
         self._build_version_tab()
 
+        self.system_tab = ttk.Frame(notebook)
+        notebook.add(self.system_tab, text="システム設定")
+        self._build_system_tab()
+
         self._refresh_current()
 
     # ------------------------------------------------------------------
@@ -128,6 +133,12 @@ class AdminPanel(ttk.Frame):
         ttk.Button(toolbar, text="新規作成", command=self._create_survey).pack(
             side=tk.RIGHT, padx=2
         )
+        ttk.Checkbutton(
+            toolbar,
+            text="アーカイブも表示",
+            variable=self._show_archived,
+            command=self._refresh_survey_list,
+        ).pack(side=tk.RIGHT, padx=8)
 
         self.s_tree = ttk.Treeview(
             self.list_tab,
@@ -164,7 +175,8 @@ class AdminPanel(ttk.Frame):
     def _refresh_survey_list(self) -> None:
         for item in self.s_tree.get_children():
             self.s_tree.delete(item)
-        for s in list_surveys():
+        include_archived = self._show_archived.get()
+        for s in list_surveys(include_archived=include_archived):
             status = "公開中" if s.get("status") == "active" else "非公開"
             start = s.get("start_date", "") or "—"
             end = s.get("end_date", "") or "—"
@@ -649,8 +661,9 @@ class AdminPanel(ttk.Frame):
 
         ttk.Label(
             frame,
-            text="最新のexeを共有フォルダに配置したら、ここに最新バージョンを登録してください。\n"
-            "古いバージョンで起動した端末に更新を促します。",
+            text="最新のexeを共有フォルダの updates/ に配置し、\n"
+            "ここに最新バージョンとexeファイル名を登録してください。\n"
+            "古い端末は起動時に自動で更新されます。",
             foreground="gray",
             justify=tk.LEFT,
         ).grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=(5, 10))
@@ -661,13 +674,24 @@ class AdminPanel(ttk.Frame):
             row=3, column=1, sticky=tk.W, pady=2
         )
 
-        ttk.Label(frame, text="更新メモ:").grid(row=4, column=0, sticky=tk.NW)
+        ttk.Label(frame, text="exeファイル名:").grid(row=4, column=0, sticky=tk.W)
+        self.exe_filename_var = tk.StringVar(value=info.get("exe_filename", ""))
+        ttk.Entry(frame, textvariable=self.exe_filename_var, width=30).grid(
+            row=4, column=1, sticky=tk.W, pady=2
+        )
+        ttk.Label(
+            frame,
+            text=f"配置先: {config.updates_dir()}",
+            foreground="gray", font=("", 8),
+        ).grid(row=5, column=1, sticky=tk.W)
+
+        ttk.Label(frame, text="更新メモ:").grid(row=6, column=0, sticky=tk.NW)
         self.ver_note_text = tk.Text(frame, width=45, height=3)
-        self.ver_note_text.grid(row=4, column=1, sticky=tk.W, pady=2)
+        self.ver_note_text.grid(row=6, column=1, sticky=tk.W, pady=2)
         self.ver_note_text.insert("1.0", info.get("note", ""))
 
         ttk.Button(frame, text="登録", command=self._save_version).grid(
-            row=5, column=0, columnspan=2, pady=10
+            row=7, column=0, columnspan=2, pady=10
         )
 
     def _save_version(self) -> None:
@@ -675,9 +699,102 @@ class AdminPanel(ttk.Frame):
         if not latest:
             messagebox.showwarning("入力不足", "最新バージョンを入力してください。")
             return
-        save_version_info(latest, self.ver_note_text.get("1.0", tk.END).strip())
+        exe_fn = self.exe_filename_var.get().strip()
+        save_version_info(latest, self.ver_note_text.get("1.0", tk.END).strip(), exe_fn)
         write_action_log(f"最新バージョン登録: {latest}")
         messagebox.showinfo("完了", "最新バージョン情報を登録しました。")
+
+
+    # ------------------------------------------------------------------
+    # システム設定タブ（接続先変更・端末情報 — 管理者のみ表示）
+    # ------------------------------------------------------------------
+    def _build_system_tab(self) -> None:
+        import platform
+        import socket
+
+        frame = ttk.LabelFrame(
+            self.system_tab, text="接続先・端末情報", padding=20
+        )
+        frame.pack(padx=20, pady=20, fill=tk.X)
+
+        ttk.Label(
+            frame, text=f"データ保存先: {config.DATA_DIR}", wraplength=500
+        ).grid(row=0, column=0, columnspan=2, sticky=tk.W, pady=3)
+
+        try:
+            hostname = socket.gethostname()
+            ip = socket.gethostbyname(hostname)
+        except Exception:
+            hostname, ip = "不明", "不明"
+        ttk.Label(
+            frame, text=f"端末名: {hostname}　IP: {ip}"
+        ).grid(row=1, column=0, columnspan=2, sticky=tk.W, pady=3)
+
+        ttk.Label(
+            frame, text=f"OS: {platform.system()} {platform.release()}"
+        ).grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=3)
+
+        ttk.Label(
+            frame, text=f"アプリバージョン: {config.APP_VERSION}"
+        ).grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=3)
+
+        ttk.Separator(frame, orient=tk.HORIZONTAL).grid(
+            row=4, column=0, columnspan=2, sticky="ew", pady=10
+        )
+
+        ttk.Label(frame, text="共有フォルダの変更:").grid(
+            row=5, column=0, sticky=tk.W, pady=3
+        )
+        self._sys_path_var = tk.StringVar(value=config.DATA_DIR)
+        path_frame = ttk.Frame(frame)
+        path_frame.grid(row=6, column=0, columnspan=2, sticky=tk.W, pady=3)
+        ttk.Entry(path_frame, textvariable=self._sys_path_var, width=50).pack(
+            side=tk.LEFT, padx=(0, 5)
+        )
+        ttk.Button(
+            path_frame, text="参照...", command=self._sys_browse_folder
+        ).pack(side=tk.LEFT)
+
+        self._sys_status = ttk.Label(frame, text="")
+        self._sys_status.grid(row=7, column=0, columnspan=2, sticky=tk.W, pady=2)
+
+        ttk.Button(
+            frame, text="接続テスト＆変更", command=self._sys_change_connection
+        ).grid(row=8, column=0, columnspan=2, pady=10)
+
+    def _sys_browse_folder(self) -> None:
+        import os
+        from tkinter import filedialog
+
+        path = filedialog.askdirectory(title="共有フォルダを選択")
+        if path:
+            self._sys_path_var.set(path)
+
+    def _sys_change_connection(self) -> None:
+        import os
+
+        path = self._sys_path_var.get().strip()
+        if not path:
+            self._sys_status.config(text="パスを入力してください。", foreground="red")
+            return
+        if not os.path.isdir(path):
+            self._sys_status.config(
+                text="指定されたフォルダが見つかりません。", foreground="red"
+            )
+            return
+        test_file = os.path.join(path, ".connection_test")
+        try:
+            with open(test_file, "w") as f:
+                f.write("test")
+            os.remove(test_file)
+        except OSError:
+            self._sys_status.config(
+                text="フォルダへの書き込み権限がありません。", foreground="red"
+            )
+            return
+        config.set_data_dir(path)
+        write_action_log(f"接続先変更: {path}")
+        self._sys_status.config(text="変更しました。次回起動時に反映されます。", foreground="green")
 
 
 class QuestionEditDialog(tk.Toplevel):

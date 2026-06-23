@@ -23,6 +23,8 @@ from src.data_manager import (
 )
 from src.logger import write_action_log
 
+_RADIO_UNSELECTED = "__unselected__"
+
 
 class ResponsePanel(ttk.Frame):
     """回答者モードのメインパネル。アンケート選択→回答フォーム。"""
@@ -255,7 +257,7 @@ class ResponsePanel(ttk.Frame):
         ttk.Label(frame, text=q["text"], wraplength=550).pack(anchor=tk.W, pady=(0, 5))
 
         if q["type"] == "single_choice":
-            var = tk.StringVar()
+            var = tk.StringVar(value=_RADIO_UNSELECTED)
             for choice in q.get("choices", []):
                 ttk.Radiobutton(
                     frame,
@@ -274,7 +276,8 @@ class ResponsePanel(ttk.Frame):
         answers: dict[int, str] = {}
         for q_id, widget in self._answer_widgets.items():
             if isinstance(widget, tk.StringVar):
-                answers[q_id] = widget.get()
+                val = widget.get()
+                answers[q_id] = "" if val == _RADIO_UNSELECTED else val
             elif isinstance(widget, tk.Text):
                 answers[q_id] = widget.get("1.0", tk.END).strip()
         return answers

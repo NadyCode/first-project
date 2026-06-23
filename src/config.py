@@ -122,10 +122,14 @@ def legacy_answers_path() -> str:
     return os.path.join(DATA_DIR, "answers.csv")
 
 
+def updates_dir() -> str:
+    return os.path.join(DATA_DIR, "updates")
+
+
 # ロックファイル用タイムアウト（秒）- ネットワーク環境を考慮し長めに設定
 LOCK_TIMEOUT = 30
 LOCK_RETRY_INTERVAL = 0.3
 
 # アプリケーション情報
 APP_TITLE = "病院アンケートシステム"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.3.0"
